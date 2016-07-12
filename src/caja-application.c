@@ -455,9 +455,7 @@ check_required_directories (CajaApplication *application)
 
         dialog = eel_show_error_dialog (error_string, detail_string, NULL);
         /* We need the main event loop so the user has a chance to see the dialog. */
-#if GTK_CHECK_VERSION (3, 0, 0)
-        caja_main_event_loop_register (GTK_WIDGET (dialog));
-#else
+#if 	!GTK_CHECK_VERSION (3, 0, 0)
         caja_main_event_loop_register (GTK_OBJECT (dialog));
 #endif
 

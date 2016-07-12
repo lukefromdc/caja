@@ -620,6 +620,10 @@ main (int argc, char *argv[])
         {
             no_default_window = TRUE;
         }
+        if (g_getenv ("CAJA_PERSIST") != NULL) {
+		    g_application_hold (G_APPLICATION (application));
+        }
+
 
         caja_application_startup
         (application,

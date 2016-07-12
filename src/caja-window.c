@@ -101,7 +101,7 @@ static void action_view_as_callback         (GtkAction               *action,
 
 static GList *history_list;
 
-G_DEFINE_TYPE_WITH_CODE (CajaWindow, caja_window, GTK_TYPE_WINDOW,
+G_DEFINE_TYPE_WITH_CODE (CajaWindow, caja_window, GTK_TYPE_APPLICATION_WINDOW,
                          G_IMPLEMENT_INTERFACE (CAJA_TYPE_WINDOW_INFO,
                                  caja_window_info_iface_init));
 
@@ -215,11 +215,7 @@ caja_window_init (CajaWindow *window)
                              G_CALLBACK (caja_window_load_extension_menus), window, G_CONNECT_SWAPPED);
 
 /* Keep the main event loop alive as long as the window exists */
-#if GTK_CHECK_VERSION(3, 0, 0)
-    /* FIXME: port to GtkApplication with GTK3 */
-    //gtk_quit_add_destroy (1, GTK_WIDGET (window));
-    caja_main_event_loop_register (GTK_WIDGET (window));
-#else
+#if !GTK_CHECK_VERSION(3, 0, 0)
     gtk_quit_add_destroy (1, GTK_OBJECT (window));
     caja_main_event_loop_register (GTK_OBJECT (window));
 #endif

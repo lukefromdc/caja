@@ -83,7 +83,7 @@ typedef struct CajaWindowDetails CajaWindowDetails;
 
 typedef struct
 {
-    GtkWindowClass parent_spot;
+    GtkApplicationWindowClass  parent_spot;
 
     CajaWindowType window_type;
     const char *bookmarks_placeholder;
@@ -118,7 +118,7 @@ typedef struct
 
 struct CajaWindow
 {
-    GtkWindow parent_object;
+    GtkApplicationWindow parent_object;
 
     CajaWindowDetails *details;
 

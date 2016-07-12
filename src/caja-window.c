@@ -218,7 +218,11 @@ caja_window_init (CajaWindow *window)
                              G_CALLBACK (caja_window_load_extension_menus), window, G_CONNECT_SWAPPED);
 
 /* Keep the main event loop alive as long as the window exists */
-#if !GTK_CHECK_VERSION(3, 0, 0)
+#if GTK_CHECK_VERSION(3, 0, 0)
+    /* FIXME: port to GtkApplication with GTK3 */
+    //gtk_quit_add_destroy (1, GTK_WIDGET (window));
+    caja_main_event_loop_register (GTK_WIDGET (window));
+#else
     gtk_quit_add_destroy (1, GTK_OBJECT (window));
     caja_main_event_loop_register (GTK_OBJECT (window));
 #endif

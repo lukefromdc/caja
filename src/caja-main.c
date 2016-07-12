@@ -620,10 +620,11 @@ main (int argc, char *argv[])
         {
             no_default_window = TRUE;
         }
+#if GTK_CHECK_VERSION(3, 0, 0)
         if (g_getenv ("CAJA_PERSIST") != NULL) {
 		    g_application_hold (G_APPLICATION (application));
         }
-
+#endif
 
         caja_application_startup
         (application,

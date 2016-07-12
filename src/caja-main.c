@@ -620,6 +620,11 @@ main (int argc, char *argv[])
         {
             no_default_window = TRUE;
         }
+#if GTK_CHECK_VERSION(3, 0, 0)
+        if (g_getenv ("CAJA_PERSIST") != NULL) {
+		    g_application_hold (G_APPLICATION (application));
+        }
+#endif
 
         caja_application_startup
         (application,
@@ -629,12 +634,13 @@ main (int argc, char *argv[])
          uris);
         g_strfreev (uris);
 
+#if !GTK_CHECK_VERSION(3, 0, 0)
         if (unique_app_is_running (application->unique_app) ||
                 kill_shell)
         {
             exit_with_last_window = TRUE;
         }
-
+#endif
         if (is_event_loop_needed ())
         {
             gtk_main ();

@@ -130,80 +130,6 @@ static char *   caja_application_get_session_data (void);
 
 G_DEFINE_TYPE (CajaApplication, caja_application, G_TYPE_OBJECT);
 
-static gboolean
-_unique_message_data_set_geometry_and_uris (UniqueMessageData  *message_data,
-        const char *geometry,
-        char **uris)
-{
-    GString *list;
-    gint i;
-    gchar *result;
-    gsize length;
-
-    list = g_string_new (NULL);
-    if (geometry != NULL)
-    {
-        g_string_append (list, geometry);
-    }
-    g_string_append (list, "\r\n");
-
-    for (i = 0; uris != NULL && uris[i]; i++)
-    {
-        g_string_append (list, uris[i]);
-        g_string_append (list, "\r\n");
-    }
-
-    result = g_convert (list->str, list->len,
-                        "ASCII", "UTF-8",
-                        NULL, &length, NULL);
-    g_string_free (list, TRUE);
-
-    if (result)
-    {
-        unique_message_data_set (message_data, (guchar *) result, length);
-        g_free (result);
-        return TRUE;
-    }
-
-    return FALSE;
-}
-
-static gchar **
-_unique_message_data_get_geometry_and_uris (UniqueMessageData *message_data,
-        char **geometry)
-{
-    gchar **result = NULL;
-
-    *geometry = NULL;
-
-    gchar *text, *newline, *uris;
-    text = unique_message_data_get_text (message_data);
-    if (text)
-    {
-        newline = strchr (text, '\n');
-        if (newline)
-        {
-            *geometry = g_strndup (text, newline-text);
-            uris = newline+1;
-        }
-        else
-        {
-            uris = text;
-        }
-
-        result = g_uri_list_extract_uris (uris);
-        g_free (text);
-    }
-
-    /* if the string is empty, make it NULL */
-    if (*geometry && strlen (*geometry) == 0)
-    {
-        g_free (*geometry);
-        *geometry = NULL;
-    }
-
-    return result;
-}
 
 GList *
 caja_application_get_window_list (void)
@@ -296,12 +222,6 @@ smclient_quit_cb (EggSMClient   *client,
 static void
 caja_application_init (CajaApplication *application)
 {
-    application->unique_app = unique_app_new_with_commands ("org.mate.Caja", NULL,
-                              "start_desktop", COMMAND_START_DESKTOP,
-                              "stop_desktop", COMMAND_STOP_DESKTOP,
-                              "open_browser", COMMAND_OPEN_BROWSER,
-                              NULL);
-
 
     application->smclient = egg_sm_client_get ();
     g_signal_connect (application->smclient, "save_state",
@@ -357,8 +277,6 @@ caja_application_finalize (GObject *object)
         g_object_unref (application->volume_monitor);
         application->volume_monitor = NULL;
     }
-
-    g_object_unref (application->unique_app);
 
 	if (application->ss_watch_id > 0)
 	{
@@ -455,7 +373,9 @@ check_required_directories (CajaApplication *application)
 
         dialog = eel_show_error_dialog (error_string, detail_string, NULL);
         /* We need the main event loop so the user has a chance to see the dialog. */
-#if 	!GTK_CHECK_VERSION (3, 0, 0)
+#if GTK_CHECK_VERSION (3, 0, 0)
+        caja_main_event_loop_register (GTK_WIDGET (dialog));
+#else
         caja_main_event_loop_register (GTK_OBJECT (dialog));
 #endif
 
@@ -922,56 +842,6 @@ caja_application_open_location (CajaApplication *application,
     }
 }
 
-static UniqueResponse
-message_received_cb (UniqueApp         *unique_app,
-                     gint               command,
-                     UniqueMessageData *message,
-                     guint              time_,
-                     gpointer           user_data)
-{
-    CajaApplication *application;
-    UniqueResponse res;
-    char **uris;
-    char *geometry;
-    GdkScreen *screen;
-
-    application =  user_data;
-    res = UNIQUE_RESPONSE_OK;
-
-    switch (command)
-    {
-    case UNIQUE_CLOSE:
-        res = UNIQUE_RESPONSE_OK;
-        caja_main_event_loop_quit (TRUE);
-
-        break;
-    case UNIQUE_OPEN:
-    case COMMAND_OPEN_BROWSER:
-        uris = _unique_message_data_get_geometry_and_uris (message, &geometry);
-        screen = unique_message_data_get_screen (message);
-        open_windows (application,
-                      unique_message_data_get_startup_id (message),
-                      uris,
-                      screen,
-                      geometry,
-                      command == COMMAND_OPEN_BROWSER);
-        g_strfreev (uris);
-        g_free (geometry);
-        break;
-    case COMMAND_START_DESKTOP:
-        caja_application_open_desktop (application);
-        break;
-    case COMMAND_STOP_DESKTOP:
-        caja_application_close_desktop ();
-        break;
-    default:
-        res = UNIQUE_RESPONSE_PASSTHROUGH;
-        break;
-    }
-
-    return res;
-}
-
 gboolean
 caja_application_save_accel_map (gpointer data)
 {
@@ -1046,7 +916,6 @@ caja_application_startup (CajaApplication *application,
                           const char *geometry,
                           char **urls)
 {
-    UniqueMessageData *message;
 
     /* Check the user's ~/.config/caja directories and post warnings
      * if there are problems.
@@ -1058,12 +927,6 @@ caja_application_startup (CajaApplication *application,
 
     if (kill_shell)
     {
-        if (unique_app_is_running (application->unique_app))
-        {
-            unique_app_send_message (application->unique_app,
-                                     UNIQUE_CLOSE, NULL);
-
-        }
     }
     else
     {
@@ -1077,21 +940,7 @@ caja_application_startup (CajaApplication *application,
 
         if (!no_desktop)
         {
-            if (unique_app_is_running (application->unique_app))
-            {
-                unique_app_send_message (application->unique_app,
-                                         COMMAND_START_DESKTOP, NULL);
-            }
-            else
-            {
                 caja_application_open_desktop (application);
-            }
-        }
-
-        if (!unique_app_is_running (application->unique_app))
-        {
-            finish_startup (application, no_desktop);
-            g_signal_connect (application->unique_app, "message-received", G_CALLBACK (message_received_cb), application);
         }
 
 #if GTK_CHECK_VERSION (3, 0, 0)
@@ -1115,31 +964,12 @@ caja_application_startup (CajaApplication *application,
         /* Create the other windows. */
         if (urls != NULL || !no_default_window)
         {
-            if (unique_app_is_running (application->unique_app))
-            {
-                message = unique_message_data_new ();
-                _unique_message_data_set_geometry_and_uris (message, geometry, urls);
-                if (browser_window)
-                {
-                    unique_app_send_message (application->unique_app,
-                                             COMMAND_OPEN_BROWSER, message);
-                }
-                else
-                {
-                    unique_app_send_message (application->unique_app,
-                                             UNIQUE_OPEN, message);
-                }
-                unique_message_data_free (message);
-            }
-            else
-            {
                 open_windows (application, NULL,
                               urls,
                               gdk_display_get_default_screen (gdk_display_get_default()),
                               // gdk_screen_get_default (),
                               geometry,
                               browser_window);
-            }
         }
 
         /* Load session info if availible */

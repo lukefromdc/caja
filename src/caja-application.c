@@ -941,6 +941,7 @@ caja_application_startup (CajaApplication *application,
         if (!no_desktop)
         {
                 caja_application_open_desktop (application);
+                finish_startup (application, no_desktop);
         }
 
 #if GTK_CHECK_VERSION (3, 0, 0)

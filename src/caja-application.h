@@ -29,7 +29,6 @@
 
 #include <gdk/gdk.h>
 #include <gio/gio.h>
-#include <unique/unique.h>
 #include <libegg/eggsmclient.h>
 
 #define CAJA_DESKTOP_ICON_VIEW_IID "OAFIID:Caja_File_Manager_Desktop_Icon_View"
@@ -62,7 +61,6 @@ typedef struct CajaShell CajaShell;
 typedef struct
 {
     GObject parent;
-    UniqueApp* unique_app;
     EggSMClient* smclient;
     GVolumeMonitor* volume_monitor;
     unsigned int automount_idle_id;

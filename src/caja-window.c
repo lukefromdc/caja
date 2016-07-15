@@ -100,7 +100,11 @@ static void action_view_as_callback         (GtkAction               *action,
 
 static GList *history_list;
 
+#if GTK_CHECK_VERSION(3, 0, 0)
+G_DEFINE_TYPE_WITH_CODE (CajaWindow, caja_window, GTK_TYPE_APPLICATION_WINDOW,
+#else
 G_DEFINE_TYPE_WITH_CODE (CajaWindow, caja_window, GTK_TYPE_WINDOW,
+#endif
                          G_IMPLEMENT_INTERFACE (CAJA_TYPE_WINDOW_INFO,
                                  caja_window_info_iface_init));
 

@@ -1,6 +1,7 @@
 /* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 8; tab-width: 8 -*- */
 /*
  * caja-application: main Caja application class.
+ * Copyright (C) 2010 Cosimo Cecchi <cosimoc@gnome.org>
  *
  * Copyright (C) 2000 Red Hat, Inc.
  *
@@ -62,7 +63,7 @@ typedef struct {
 	GDBusProxy *proxy;
 	gboolean session_is_active;
 
-	gboolean sm_initialized;
+	gboolean initialized;
 } CajaApplication;
 
 typedef struct {
@@ -73,7 +74,6 @@ GType caja_application_get_type (void);
 
 CajaApplication *caja_application_dup_singleton (void);
 
-guint caja_application_get_n_windows (CajaApplication *self);
 CajaWindow *     caja_application_get_spatial_window     (CajaApplication *application,
 								  CajaWindow      *requesting_window,
 								  const char          *startup_id,
@@ -88,9 +88,6 @@ CajaWindow *     caja_application_create_navigation_window     (CajaApplication 
 void caja_application_close_all_navigation_windows (CajaApplication *self);
 void                 caja_application_close_parent_windows     (CajaSpatialWindow *window);
 void                 caja_application_close_all_spatial_windows  (void);
-void                 caja_application_open_desktop      (CajaApplication *application);
-void                 caja_application_close_desktop     (void);
-gboolean             caja_application_save_accel_map    (gpointer data);
 
 GList *              caja_application_get_window_list           (void);
 

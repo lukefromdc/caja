@@ -29,7 +29,6 @@
 #include <config.h>
 
 #include "caja-application.h"
-#include "caja-self-check-functions.h"
 #include "caja-window.h"
 #include <dlfcn.h>
 #include <signal.h>
@@ -44,7 +43,6 @@
 #include <gio/gdesktopappinfo.h>
 #include <libcaja-private/caja-debug-log.h>
 #include <libcaja-private/caja-global-preferences.h>
-#include <libcaja-private/caja-lib-self-check-functions.h>
 #include <libcaja-private/caja-icon-names.h>
 #include <libxml/parser.h>
 #ifdef HAVE_LOCALE_H
@@ -224,12 +222,7 @@ setup_debug_log (void)
 int
 main (int argc, char *argv[])
 {
-	gboolean no_default_window;
-	gboolean no_desktop;
-	gboolean autostart_mode;
 	gint retval;
-	const char *autostart_id;
-	gboolean perform_self_check = FALSE;
 	CajaApplication *application;
 	
 #if defined (HAVE_MALLOPT) && defined(M_MMAP_THRESHOLD)
@@ -261,21 +254,6 @@ main (int argc, char *argv[])
 	bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
 	textdomain (GETTEXT_PACKAGE);
 
-	autostart_mode = FALSE;
-
-	autostart_id = g_getenv ("DESKTOP_AUTOSTART_ID");
-	if (autostart_id != NULL && *autostart_id != '\0') {
-		autostart_mode = TRUE;
-        }
-
-	/* If in autostart mode (aka started by mate-session), we need to ensure 
-         * caja starts with the correct options.
-         */
-	if (autostart_mode) {
-		no_default_window = TRUE;
-		no_desktop = FALSE;
-	}
-
 	g_set_prgname ("caja");
 
 	if (g_file_test (DATADIR "/applications/caja.desktop", G_FILE_TEST_EXISTS)) {
@@ -291,46 +269,15 @@ main (int argc, char *argv[])
 	/* Initialize the services that we use. */
 	LIBXML_TEST_VERSION
 
-	/* Initialize preferences. This is needed to create the
-	 * global GSettings objects.
-	 */
-	caja_global_preferences_init ();
-
-#if 0
-	/* exit_with_last_window being FALSE, caja can run without window. */
-	exit_with_last_window =
-		g_settings_get_boolean (caja_preferences, CAJA_PREFERENCES_EXIT_WITH_LAST_WINDOW);
-#endif
-	application = NULL;
-
-	/* Do either the self-check or the real work. */
-	if (perform_self_check) {
-#ifndef CAJA_OMIT_SELF_CHECK
-		/* Run the checks (each twice) for caja and libcaja-private. */
-
-		caja_run_self_checks ();
-		caja_run_lib_self_checks ();
-		eel_exit_if_self_checks_failed ();
-
-		caja_run_self_checks ();
-		caja_run_lib_self_checks ();
-		eel_exit_if_self_checks_failed ();
-
-		retval = EXIT_SUCCESS;
-#endif
-	} else {
 		/* Run the caja application. */
 		application = caja_application_dup_singleton ();
 
 		retval = g_application_run (G_APPLICATION (application),
 					    argc, argv);
-	}
 
-	caja_icon_info_clear_caches ();	
-	g_object_unref (application);
+		g_object_unref (application);
+
  	eel_debug_shut_down ();
 
- 	caja_application_save_accel_map (NULL);
-	
 	return EXIT_SUCCESS;
 }

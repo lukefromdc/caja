@@ -74,6 +74,8 @@ GType caja_application_get_type (void);
 
 CajaApplication *caja_application_dup_singleton (void);
 
+void caja_application_quit (CajaApplication *self);
+
 CajaWindow *     caja_application_get_spatial_window     (CajaApplication *application,
 								  CajaWindow      *requesting_window,
 								  const char          *startup_id,

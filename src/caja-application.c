@@ -1504,6 +1504,7 @@ caja_application_command_line (GApplication *app,
 {
 	gboolean perform_self_check = FALSE;
 	gboolean version = FALSE;
+	gboolean help = FALSE;
 	gboolean no_default_window = FALSE;
 	gboolean no_desktop = FALSE;
 	gboolean browser_window = FALSE;
@@ -1520,6 +1521,8 @@ caja_application_command_line (GApplication *app,
 #endif
 		{ "version", '\0', 0, G_OPTION_ARG_NONE, &version,
 		  N_("Show the version of the program."), NULL },
+		{ "help", '\0', 0, G_OPTION_ARG_NONE, &help,
+		  N_("Show terminal help."), NULL },
 		{ "geometry", 'g', 0, G_OPTION_ARG_STRING, &geometry,
 		  N_("Create the initial window with the given geometry."), N_("GEOMETRY") },
 		{ "no-default-window", 'n', 0, G_OPTION_ARG_NONE, &no_default_window,
@@ -1543,6 +1546,8 @@ caja_application_command_line (GApplication *app,
 	gboolean exit_with_last_window;
 
 	context = g_option_context_new (_("\n\nBrowse the file system with the file manager"));
+	g_option_context_set_help_enabled (context, FALSE); /*disable normal help that causes crash due to same thread*/
+	g_option_context_set_ignore_unknown_options (context, TRUE);
 	g_option_context_add_main_entries (context, options, NULL);
 	g_option_context_add_group (context, gtk_get_option_group (TRUE));
 
@@ -1572,6 +1577,38 @@ caja_application_command_line (GApplication *app,
 		g_application_command_line_print (command_line, "MATE caja " PACKAGE_VERSION "\n");
 		goto out;
 	}
+
+if (help) {
+		g_application_command_line_print (command_line,
+		"Usage:" "\n"
+		"   caja [OPTION...] [URI...] " "\n"
+		"\n"
+		"Browse the file system with the file manager" "\n"
+		"\n"
+		"GTK+ Options" "\n"
+		"  --class=CLASS                   Program class as used by the window manager" "\n"
+		"  --name=NAME                     Program name as used by the window manager" "\n"
+		"  --display=DISPLAY               X display to use" "\n"
+		"  --gdk-debug=FLAGS               GDK debugging flags to set" "\n"
+		"  --gdk-no-debug=FLAGS            GDK debugging flags to unset" "\n"
+		"  --gtk-module=MODULES            Load additional GTK+ modules" "\n"
+		"  --g-fatal-warnings              Make all warnings fatal" "\n"
+		"  --gtk-debug=FLAGS               GTK+ debugging flags to set" "\n"
+		"  --gtk-no-debug=FLAGS            GTK+ debugging flags to unset" "\n"
+		"\n"
+		"Application Options:""\n"
+		"  -c, --check                     Perform a quick set of self-check tests." "\n"
+		"  --version                       Show the version of the program." "\n"
+		"  -g, --geometry=GEOMETRY         Create the initial window with the given geometry." "\n"
+		"  -n, --no-default-window         Only create windows for explicitly specified URIs." "\n"
+		"  --no-desktop                    Do not manage the desktop (ignore the preference set in the preferences dialog)." "\n"
+		"  --browser                       open a browser window." "\n"
+		"  -q, --quit                      Quit Caja." "\n"
+		"  --display=DISPLAY               X display to use" "\n" );
+
+		goto out;
+	}
+
 	if (perform_self_check && (remaining != NULL || kill_shell)) {
 		g_application_command_line_printerr (command_line, "%s\n",
 						     _("--check cannot be used with other options."));

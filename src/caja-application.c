@@ -1689,8 +1689,6 @@ if (help) {
 				g_application_hold (app);
 			}
 
-			finish_startup (self, no_desktop);
-
 			/* Monitor the preference to show or hide the desktop */
 			g_signal_connect_swapped (mate_background_preferences, "changed::" MATE_BG_KEY_SHOW_DESKTOP,
 						  G_CALLBACK (desktop_changed_callback),
@@ -1704,6 +1702,10 @@ if (help) {
 	
 		finish_startup (self, no_desktop);
 
+#if GTK_CHECK_VERSION (3, 0, 0)
+        /* initialize CSS theming */
+        init_css ();
+#endif
 			/* Initialize SMClient and load session info if availible */
 			caja_application_smclient_load (self, &no_default_window);
 
@@ -1751,6 +1753,30 @@ if (help) {
 
 	return retval;
 }
+
+#if GTK_CHECK_VERSION (3, 0, 0)
+void
+init_css (void)
+{
+    GtkCssProvider *provider;
+    GError *error = NULL;
+
+    provider = gtk_css_provider_new ();
+    gtk_css_provider_load_from_path (provider,
+				CAJA_DATADIR G_DIR_SEPARATOR_S "caja.css", &error);
+
+    if (error != NULL) {
+		g_warning ("Failed to load application css file: %s", error->message);
+		g_error_free (error);
+    } else {
+		gtk_style_context_add_provider_for_screen (gdk_screen_get_default (),
+				GTK_STYLE_PROVIDER (provider),
+				GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    }
+
+    g_object_unref (provider);
+}
+#endif
 
 static void
 caja_application_startup (GApplication *app)

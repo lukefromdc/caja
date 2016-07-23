@@ -1559,10 +1559,6 @@ if (help) {
 	
 		finish_startup (self, no_desktop);
 
-#if GTK_CHECK_VERSION (3, 0, 0)
-        /* initialize CSS theming */
-        init_css ();
-#endif
 			/* Initialize SMClient and load session info if availible */
 			caja_application_smclient_load (self, &no_default_window);
 
@@ -1647,6 +1643,11 @@ caja_application_startup (GApplication *app)
 
 	/* initialize the session manager client */
 	caja_application_smclient_startup (self);
+
+#if GTK_CHECK_VERSION (3, 0, 0)
+	/* initialize CSS theming */
+	init_css ();
+#endif
 
 	/* Initialize preferences. This is needed to create the
 	 * global GSettings objects.

@@ -71,6 +71,8 @@ src/file-manager/caja-directory-view-ui.xml
 src/file-manager/caja-icon-view-ui.xml
 src/file-manager/caja-list-view-ui.xml
 src/caja-application.c
+src/caja-application-smclient.c
+src/caja-application-smclient.h
 src/caja-autorun-software.c
 src/caja-bookmarks-window.c
 [type: gettext/glade]src/caja-bookmarks-window.ui

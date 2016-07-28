@@ -1355,6 +1355,20 @@ caja_application_quit (CajaApplication *self)
 	}
 }
 
+static gboolean
+running_in_mate (void)
+{
+    return (g_strcmp0 (g_getenv ("XDG_CURRENT_DESKTOP"), "MATE") == 0)
+        || (g_strcmp0 (g_getenv ("XDG_SESSION_DESKTOP"), "MATE") == 0)
+        || (g_strcmp0 (g_getenv ("DESKTOP_SESSION"), "MATE") == 0);
+}
+
+static gboolean
+running_as_root (void)
+{
+    return geteuid () == 0;
+}
+
 static gint
 caja_application_command_line (GApplication *app,
 				   GApplicationCommandLine *command_line)
@@ -1518,6 +1532,14 @@ if (help) {
 	if (autostart_mode) {
 		no_default_window = TRUE;
 		no_desktop = FALSE;
+	}
+	else if (running_as_root () || !running_in_mate ())
+	{
+		/* do not manage desktop when running as root or on other desktops */
+		no_desktop = TRUE;
+
+		/* set smclient mode to "no restart" when running as root or on other desktops */
+		egg_sm_client_set_mode (EGG_SM_CLIENT_MODE_NO_RESTART);
 	}
 
 	exit_with_last_window =

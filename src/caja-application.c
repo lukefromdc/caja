@@ -662,8 +662,6 @@ caja_application_create_desktop_windows (CajaApplication *application)
 			caja_application_desktop_windows =
 				g_list_prepend (caja_application_desktop_windows, window);
 
-			gtk_application_add_window (GTK_APPLICATION (application),
-										GTK_WINDOW (window));
 			/* don't add the desktop windows to the GtkApplication hold toplevels
 			 * if we should exit when the last window is closed.
 			 */
@@ -1545,6 +1543,11 @@ if (help) {
 	exit_with_last_window =
 		g_settings_get_boolean (caja_preferences,
 					CAJA_PREFERENCES_EXIT_WITH_LAST_WINDOW);
+
+	if (running_as_root ())
+	{
+	exit_with_last_window = TRUE;
+	}
 
 
 	if (kill_shell) {

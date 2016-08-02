@@ -81,9 +81,10 @@ typedef struct
     GList *volume_queue;
 } CajaApplication;
 
-typedef struct
+
 #if GTK_CHECK_VERSION (3, 0, 0)
 {
+typedef struct
 	GtkApplicationClass parent_class;
 } CajaApplicationClass;
 
@@ -91,9 +92,10 @@ GType caja_application_get_type (void);
 
 CajaApplication *caja_application_dup_singleton (void);
 #else
+typedef struct
+{
     GObjectClass parent_class;
 } CajaApplicationClass;
-
 
 GType                caja_application_get_type          (void);
 CajaApplication *caja_application_new               (void);

@@ -629,12 +629,18 @@ main (int argc, char *argv[])
          uris);
         g_strfreev (uris);
 
+#if GTK_CHECK_VERSION (3, 0, 0)
+        if (kill_shell)
+        {
+        exit_with_last_window = TRUE;
+        }
+#else
         if (unique_app_is_running (application->unique_app) ||
                 kill_shell)
         {
             exit_with_last_window = TRUE;
         }
-
+#endif
         if (is_event_loop_needed ())
         {
             gtk_main ();

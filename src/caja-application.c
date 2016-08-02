@@ -21,7 +21,8 @@
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  *  Authors: Elliot Lee <sopwith@redhat.com>,
- *           Darin Adler <darin@bentspoon.com>
+ *           Darin Adler <darin@bentspoon.com>,
+ *          Cosimo Cecchi <cosimoc@gnome.org>
  *
  */
 
@@ -38,6 +39,9 @@
 #include "caja-information-panel.h"
 #include "caja-history-sidebar.h"
 #include "caja-places-sidebar.h"
+#if GTK_CHECK_VERSION (3, 0, 0)
+#include "caja-self-check-functions.h"
+#endif
 #include "caja-notes-viewer.h"
 #include "caja-emblem-sidebar.h"
 #include "caja-image-properties-page.h"
@@ -45,7 +49,9 @@
 #include <string.h>
 #include <unistd.h>
 #include "caja-desktop-window.h"
+#if !GTK_CHECK_VERSION (3, 0, 0)
 #include "caja-main.h"
+#endif
 #include "caja-spatial-window.h"
 #include "caja-navigation-window.h"
 #include "caja-window-slot.h"
@@ -67,6 +73,9 @@
 #include <libcaja-private/caja-debug-log.h>
 #include <libcaja-private/caja-file-utilities.h>
 #include <libcaja-private/caja-global-preferences.h>
+#if GTK_CHECK_VERSION (3, 0, 0)
+#include <libcaja-private/caja-lib-self-check-functions.h>
+#endif
 #include <libcaja-private/caja-extensions.h>
 #include <libcaja-private/caja-module.h>
 #include <libcaja-private/caja-desktop-link-monitor.h>
@@ -77,6 +86,11 @@
 #define MATE_DESKTOP_USE_UNSTABLE_API
 #include <libmate-desktop/mate-bg.h>
 
+#if GTK_CHECK_VERSION (3, 0, 0)
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#else
 enum {
 	COMMAND_0, /* unused: 0 is an invalid command */
 
@@ -84,19 +98,24 @@ enum {
 	COMMAND_STOP_DESKTOP,
 	COMMAND_OPEN_BROWSER,
 };
-
+#endif
 /* Keep window from shrinking down ridiculously small; numbers are somewhat arbitrary */
 #define APPLICATION_WINDOW_MIN_WIDTH	300
 #define APPLICATION_WINDOW_MIN_HEIGHT	100
 
 #define CAJA_ACCEL_MAP_SAVE_DELAY 30
 
+#if GTK_CHECK_VERSION (3, 0, 0)
+static CajaApplication *singleton = NULL;
+#endif
+
 /* Keeps track of all the desktop windows. */
 static GList *caja_application_desktop_windows;
 
+#if !GTK_CHECK_VERSION (3, 0, 0)
 /* Keeps track of all the caja windows. */
 static GList *caja_application_window_list;
-
+#endif
 /* Keeps track of all the object windows */
 static GList *caja_application_spatial_window_list;
 
@@ -107,7 +126,9 @@ static gboolean save_of_accel_map_requested = FALSE;
 static CajaFreedesktopDBus *fdb_manager = NULL;
 
 static void     desktop_changed_callback          (gpointer                  user_data);
+#if !GTK_CHECK_VERSION (3, 0, 0)
 static void     desktop_location_changed_callback (gpointer                  user_data);
+#endif
 static void     mount_removed_callback            (GVolumeMonitor            *monitor,
         GMount                    *mount,
         CajaApplication       *application);
@@ -128,9 +149,11 @@ static void     drive_listen_for_eject_button      (GDrive *drive,
 static void     caja_application_load_session     (CajaApplication *application);
 static char *   caja_application_get_session_data (void);
 
+#if GTK_CHECK_VERSION (3, 0, 0)
+G_DEFINE_TYPE (CajaApplication, caja_application, GTK_TYPE_APPLICATION);
+#else
 G_DEFINE_TYPE (CajaApplication, caja_application, G_TYPE_OBJECT);
 
-#if !GTK_CHECK_VERSION (3, 0, 0)
 static gboolean
 _unique_message_data_set_geometry_and_uris (UniqueMessageData  *message_data,
         const char *geometry,
@@ -205,27 +228,29 @@ _unique_message_data_get_geometry_and_uris (UniqueMessageData *message_data,
 
     return result;
 }
-#endif
 
 GList *
 caja_application_get_window_list (void)
 {
     return caja_application_window_list;
 }
+#endif
 
 GList *
+
 caja_application_get_spatial_window_list (void)
 {
     return caja_application_spatial_window_list;
 }
 
+#if !GTK_CHECK_VERSION (3, 0, 0)
 unsigned int
 caja_application_get_n_windows (void)
 {
     return g_list_length (caja_application_window_list) +
            g_list_length (caja_application_desktop_windows);
 }
-
+#endif
 static void
 startup_volume_mount_cb (GObject *source_object,
                          GAsyncResult *res,
@@ -269,7 +294,7 @@ automount_all_volumes (CajaApplication *application)
     }
 
 }
-
+#if !GTK_CHECK_VERSION (3, 0, 0)
 static void
 smclient_save_state_cb (EggSMClient   *client,
                         GKeyFile      *state_file,
@@ -294,17 +319,42 @@ smclient_quit_cb (EggSMClient   *client,
 {
     caja_main_event_loop_quit (TRUE);
 }
+#endif
+#if GTK_CHECK_VERSION (3, 0, 0)
+static GObject *
+caja_application_constructor (GType type,
+				  guint n_construct_params,
+				  GObjectConstructParam *construct_params)
+{
+        GObject *retval;
 
+        if (singleton != NULL) {
+                return g_object_ref (singleton);
+        }
+
+        retval = G_OBJECT_CLASS (caja_application_parent_class)->constructor
+                (type, n_construct_params, construct_params);
+
+        singleton = CAJA_APPLICATION (retval);
+        g_object_add_weak_pointer (retval, (gpointer) &singleton);
+
+        return retval;
+}
 static void
 caja_application_init (CajaApplication *application)
 {
-#if !GTK_CHECK_VERSION (3, 0, 0)
+	/* do nothing */
+}
+
+#else
+static void
+caja_application_init (CajaApplication *application)
+{
     application->unique_app = unique_app_new_with_commands ("org.mate.Caja", NULL,
                               "start_desktop", COMMAND_START_DESKTOP,
                               "stop_desktop", COMMAND_STOP_DESKTOP,
                               "open_browser", COMMAND_OPEN_BROWSER,
-                              NULL);
-#endif
+                              NULL); 
     application->smclient = egg_sm_client_get ();
     g_signal_connect (application->smclient, "save_state",
                       G_CALLBACK (smclient_save_state_cb),
@@ -338,7 +388,7 @@ caja_application_init (CajaApplication *application)
     gtk_icon_theme_append_search_path (gtk_icon_theme_get_default (),
                                        CAJA_DATADIR G_DIR_SEPARATOR_S "icons");
 }
-
+#endif
 CajaApplication *
 caja_application_new (void)
 {
@@ -458,7 +508,8 @@ check_required_directories (CajaApplication *application)
         dialog = eel_show_error_dialog (error_string, detail_string, NULL);
         /* We need the main event loop so the user has a chance to see the dialog. */
 #if GTK_CHECK_VERSION (3, 0, 0)
-        caja_main_event_loop_register (GTK_WIDGET (dialog));
+        gtk_application_add_window (GTK_APPLICATION (application),
+					    GTK_WINDOW (dialog));
 #else
         caja_main_event_loop_register (GTK_OBJECT (dialog));
 #endif
@@ -976,7 +1027,11 @@ message_received_cb (UniqueApp         *unique_app,
     return res;
 }
 #endif
+#if GTK_CHECK_VERSION (3, 0, 0)
+static gboolean
+#else
 gboolean
+#endif
 caja_application_save_accel_map (gpointer data)
 {
     if (save_of_accel_map_requested)
@@ -1008,15 +1063,6 @@ queue_accel_map_save_callback (GtkAccelMap *object, gchar *accel_path,
     }
 }
 
-static gboolean
-desktop_changed_callback_connect (CajaApplication *application)
-{
-    g_signal_connect_swapped (caja_preferences, "changed::" CAJA_PREFERENCES_DESKTOP_IS_HOME_DIR,
-                              G_CALLBACK(desktop_location_changed_callback),
-                              G_OBJECT (application));
-    return FALSE;
-}
-
 #if GTK_CHECK_VERSION (3, 0, 0)
 static void
 init_css (void)
@@ -1039,86 +1085,17 @@ init_css (void)
 
     g_object_unref (provider);
 }
-#endif
-
-
-#if GTK_CHECK_VERSION (3, 0, 0)
-void
-caja_application_startup (CajaApplication *application,
-                          gboolean kill_shell,
-                          gboolean no_default_window,
-                          gboolean no_desktop,
-                          gboolean browser_window,
-                          const char *geometry,
-                          char **urls)
+     /*only for convenience are these in the same #ifdef block!*/
+#else
+static gboolean
+desktop_changed_callback_connect (CajaApplication *application)
 {
-    /* Check the user's ~/.config/caja directories and post warnings
-     * if there are problems.
-     */
-    if (!kill_shell && !check_required_directories (application))
-    {
-        return;
-    }
-
-if (kill_shell)
-    {
-	/*Here insert GtkApplication code to close Caja */
-    }
-        char *accel_map_filename;
-
-        if (!no_desktop &&
-            !g_settings_get_boolean (mate_background_preferences, MATE_BG_KEY_SHOW_DESKTOP))
-        {
-            no_desktop = TRUE;
-        }
-
-        if (!no_desktop)
-        {
-                caja_application_open_desktop (application);
-        }
-            finish_startup (application, no_desktop);
-
-        /* initialize CSS theming */
-        init_css ();
-
-        /* Start the File Manager DBus Interface */
-        fdb_manager = caja_freedesktop_dbus_new (application);
-
-        /* Monitor the preference to show or hide the desktop */
-        g_signal_connect_swapped (mate_background_preferences,
-                                  "changed::" MATE_BG_KEY_SHOW_DESKTOP,
-                                  G_CALLBACK(desktop_changed_callback),
-                                  G_OBJECT (application));
-
-        /* Monitor the preference to have the desktop */
-        /* point to the Unix home folder */
-        g_timeout_add_seconds (30, (GSourceFunc) desktop_changed_callback_connect, application);
-
-        /* Create the other windows. */
-        if (urls != NULL || !no_default_window)
-        {
-                open_windows (application, NULL,
-                              urls,
-                              gdk_display_get_default_screen (gdk_display_get_default()),
-                              // gdk_screen_get_default (),
-                              geometry,
-                              browser_window);
-        }
-
-        /* Load session info if availible */
-        caja_application_load_session (application);
-
-        /* load accelerator map, and register save callback */
-        accel_map_filename = caja_get_accel_map_file ();
-        if (accel_map_filename)
-        {
-            gtk_accel_map_load (accel_map_filename);
-            g_free (accel_map_filename);
-        }
-        g_signal_connect (gtk_accel_map_get (), "changed", G_CALLBACK (queue_accel_map_save_callback), NULL);
+    g_signal_connect_swapped (caja_preferences, "changed::" CAJA_PREFERENCES_DESKTOP_IS_HOME_DIR,
+                              G_CALLBACK(desktop_location_changed_callback),
+                              G_OBJECT (application));
+    return FALSE;
 }
 
-#else
 void
 caja_application_startup (CajaApplication *application,
                           gboolean kill_shell,
@@ -1305,21 +1282,26 @@ selection_clear_event_cb (GtkWidget	        *widget,
 static void
 caja_application_create_desktop_windows (CajaApplication *application)
 {
+#if GTK_CHECK_VERSION (3, 0, 0)
+    gboolean exit_with_last_window;
+    exit_with_last_window = g_settings_get_boolean (caja_preferences,
+					CAJA_PREFERENCES_EXIT_WITH_LAST_WINDOW);
+#else
     static gboolean create_in_progress = FALSE;
+#endif
     GdkDisplay *display;
     CajaDesktopWindow *window;
     GtkWidget *selection_widget;
 
     g_return_if_fail (caja_application_desktop_windows == NULL);
     g_return_if_fail (CAJA_IS_APPLICATION (application));
-
+#if !GTK_CHECK_VERSION (3, 0, 0)
     if (create_in_progress)
     {
         return;
     }
-
     create_in_progress = TRUE;
-
+#endif
     display = gdk_display_get_default ();
 
     selection_widget = get_desktop_manager_selection (display);
@@ -1342,9 +1324,19 @@ caja_application_create_desktop_windows (CajaApplication *application)
 
         caja_application_desktop_windows =
             g_list_prepend (caja_application_desktop_windows, window);
+#if GTK_CHECK_VERSION (3, 0, 0)
+        /* don't add the desktop windows to the GtkApplication hold toplevels
+         * if we should exit when the last window is closed.
+         */
+        if (!exit_with_last_window) {
+            gtk_application_add_window (GTK_APPLICATION (application),
+							    GTK_WINDOW (window));
+            }
     }
-
+#else
+    }
     create_in_progress = FALSE;
+#endif
 }
 
 void
@@ -1355,8 +1347,11 @@ caja_application_open_desktop (CajaApplication *application)
         caja_application_create_desktop_windows (application);
     }
 }
-
+#if GTK_CHECK_VERSION (3, 0, 0)
+static void
+#else
 void
+#endif
 caja_application_close_desktop (void)
 {
     if (caja_application_desktop_windows != NULL)
@@ -1367,12 +1362,19 @@ caja_application_close_desktop (void)
 }
 
 void
+#if GTK_CHECK_VERSION (3, 0, 0)
+caja_application_close_all_navigation_windows (CajaApplication *self)
+{
+    GList *list_copy;
+    GList *l;
+    list_copy = g_list_copy (gtk_application_get_windows (GTK_APPLICATION (self)));
+#else
 caja_application_close_all_navigation_windows (void)
 {
     GList *list_copy;
     GList *l;
-
     list_copy = g_list_copy (caja_application_window_list);
+#endif
     /* First hide all window to get the feeling of quick response */
     for (l = list_copy; l != NULL; l = l->next)
     {
@@ -1535,16 +1537,12 @@ caja_application_close_all_spatial_windows (void)
 }
 
 static void
-#if GTK_CHECK_VERSION (3, 0, 0)
-caja_application_destroyed_window (GtkWidget *object, CajaApplication *application)
-#else
+#if !GTK_CHECK_VERSION (3, 0, 0)
 caja_application_destroyed_window (GtkObject *object, CajaApplication *application)
-#endif
 {
     caja_application_window_list = g_list_remove (caja_application_window_list, object);
 }
-
-static gboolean
+#endif
 caja_window_delete_event_callback (GtkWidget *widget,
                                    GdkEvent *event,
                                    gpointer user_data)
@@ -1581,12 +1579,14 @@ create_window (CajaApplication *application,
     g_signal_connect_data (window, "delete_event",
                            G_CALLBACK (caja_window_delete_event_callback), NULL, NULL,
                            G_CONNECT_AFTER);
-
+#if GTK_CHECK_VERSION (3, 0, 0)
+    gtk_application_add_window (GTK_APPLICATION (application),
+				    GTK_WINDOW (window));
+#else
     g_signal_connect_object (window, "destroy",
                              G_CALLBACK (caja_application_destroyed_window), application, 0);
-
     caja_application_window_list = g_list_prepend (caja_application_window_list, window);
-
+#endif
     /* Do not yet show the window. It will be shown later on if it can
      * successfully display its initial URI. Otherwise it will be destroyed
      * without ever having seen the light of day.
@@ -1712,7 +1712,7 @@ caja_application_create_navigation_window (CajaApplication *application,
 
     return window;
 }
-
+#if !GTK_CHECK_VERSION (3, 0, 0)
 /* callback for changing the directory the desktop points to */
 static void
 desktop_location_changed_callback (gpointer user_data)
@@ -1723,7 +1723,7 @@ desktop_location_changed_callback (gpointer user_data)
                         (GFunc) caja_desktop_window_update_directory, NULL);
     }
 }
-
+#endif
 /* callback for showing or hiding the desktop based on the user's preference */
 static void
 desktop_changed_callback (gpointer user_data)
@@ -1960,8 +1960,11 @@ mount_removed_callback (GVolumeMonitor *monitor,
     unclosed_slot = FALSE;
 
     /* Check and see if any of the open windows are displaying contents from the unmounted mount */
+#if GTK_CHECK_VERSION (3, 0, 0)
+    window_list = gtk_application_get_windows (GTK_APPLICATION (application));
+#else
     window_list = caja_application_get_window_list ();
-
+#endif
     root = g_mount_get_root (mount);
     /* Construct a list of windows to be closed. Do not add the non-closable windows to the list. */
     for (node = window_list; node != NULL; node = node->next)
@@ -2134,8 +2137,12 @@ caja_application_get_session_data (void)
             break;
         }
     }
-
+#if GTK_CHECK_VERSION(3, 0, 0)
+    CajaApplication *self;
+    for (l = g_list_copy (gtk_application_get_windows (GTK_APPLICATION (self)));l != NULL; l = l->next)
+#else
     for (l = caja_application_window_list; l != NULL; l = l->next)
+#endif
     {
         xmlNodePtr win_node, slot_node;
         CajaWindow *window;
@@ -2477,6 +2484,370 @@ caja_application_load_session (CajaApplication *application)
     }
 }
 
+#if GTK_CHECK_VERSION (3, 0, 0)
+
+void
+caja_application_quit (CajaApplication *self)
+{
+	GApplication *app = G_APPLICATION (self);
+	gboolean exit_with_last_window;
+
+	exit_with_last_window =
+		g_settings_get_boolean (caja_preferences,
+					CAJA_PREFERENCES_EXIT_WITH_LAST_WINDOW);
+
+	caja_application_close_desktop ();
+	g_application_release (app);
+
+	if (!exit_with_last_window) {
+		g_application_release (app);
+	}
+}
+
+static gboolean
+running_in_mate (void)
+{
+    return (g_strcmp0 (g_getenv ("XDG_CURRENT_DESKTOP"), "MATE") == 0)
+        || (g_strcmp0 (g_getenv ("XDG_SESSION_DESKTOP"), "MATE") == 0)
+        || (g_strcmp0 (g_getenv ("DESKTOP_SESSION"), "MATE") == 0);
+}
+
+static gboolean
+running_as_root (void)
+{
+    return geteuid () == 0;
+}
+
+static gint
+caja_application_command_line (GApplication *app,
+				   GApplicationCommandLine *command_line)
+{
+	gboolean perform_self_check = FALSE;
+	gboolean version = FALSE;
+    gboolean help = FALSE;
+	gboolean no_default_window = FALSE;
+	gboolean no_desktop = FALSE;
+	gboolean browser_window = FALSE;
+	gboolean kill_shell = FALSE;
+    gboolean autostart_mode = FALSE;
+    gboolean exit_with_last_window = FALSE;
+    const gchar *autostart_id;
+	gchar *geometry = NULL;
+	gchar **remaining = NULL;
+	const GOptionEntry options[] = {
+#ifndef CAJA_OMIT_SELF_CHECK
+		{ "check", 'c', 0, G_OPTION_ARG_NONE, &perform_self_check, 
+		  N_("Perform a quick set of self-check tests."), NULL },
+#endif
+		{ "version", '\0', 0, G_OPTION_ARG_NONE, &version,
+		  N_("Show the version of the program."), NULL },
+		{ "help", '\0', 0, G_OPTION_ARG_NONE, &help,
+		  N_("Show terminal help."), NULL },
+		{ "geometry", 'g', 0, G_OPTION_ARG_STRING, &geometry,
+		  N_("Create the initial window with the given geometry."), N_("GEOMETRY") },
+		{ "no-default-window", 'n', 0, G_OPTION_ARG_NONE, &no_default_window,
+		  N_("Only create windows for explicitly specified URIs."), NULL },
+		{ "no-desktop", '\0', 0, G_OPTION_ARG_NONE, &no_desktop,
+		  N_("Do not manage the desktop (ignore the preference set in the preferences dialog)."), NULL },
+		{ "browser", '\0', 0, G_OPTION_ARG_NONE, &browser_window, 
+		  N_("Open a browser window."), NULL },
+		{ "quit", 'q', 0, G_OPTION_ARG_NONE, &kill_shell, 
+		  N_("Quit Caja."), NULL },
+		{ G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY, &remaining, NULL,  N_("[URI...]") },
+
+		{ NULL }
+	};
+	GOptionContext *context;
+	GError *error = NULL;
+	CajaApplication *self = CAJA_APPLICATION (app);
+	gint argc = 0;
+	gchar **argv = NULL, **uris = NULL;
+	gint retval = EXIT_SUCCESS;
+
+	context = g_option_context_new (_("\n\nBrowse the file system with the file manager"));
+	g_option_context_set_help_enabled (context, FALSE); /*disable normal help that causes crash due to same thread*/
+	g_option_context_set_ignore_unknown_options (context, TRUE);
+	g_option_context_add_main_entries (context, options, NULL);
+	g_option_context_add_group (context, gtk_get_option_group (TRUE));
+	g_option_context_add_group (context, egg_sm_client_get_option_group ());
+
+	argv = g_application_command_line_get_arguments (command_line, &argc);
+
+	if (!g_option_context_parse (context, &argc, &argv, &error)) {
+		g_printerr ("Could not parse arguments: %s\n", error->message);
+		g_error_free (error);
+
+		retval = EXIT_FAILURE;
+		goto out;
+	}
+
+	if (version) {
+		g_application_command_line_print (command_line, "MATE caja " PACKAGE_VERSION);
+		goto out;
+	}
+
+if (help) {
+		g_application_command_line_print (command_line,
+		"Usage:" "\n"
+		"   caja [OPTION...] [URI...] " "\n"
+		"\n"
+		"Browse the file system with the file manager" "\n"
+		"\n"
+		"GTK+ Options" "\n"
+		"  --class=CLASS                   Program class as used by the window manager" "\n"
+		"  --name=NAME                     Program name as used by the window manager" "\n"
+		"  --display=DISPLAY               X display to use" "\n"
+		"  --gdk-debug=FLAGS               GDK debugging flags to set" "\n"
+		"  --gdk-no-debug=FLAGS            GDK debugging flags to unset" "\n"
+		"  --gtk-module=MODULES            Load additional GTK+ modules" "\n"
+		"  --g-fatal-warnings              Make all warnings fatal" "\n"
+		"  --gtk-debug=FLAGS               GTK+ debugging flags to set" "\n"
+		"  --gtk-no-debug=FLAGS            GTK+ debugging flags to unset" "\n"
+		"\n"
+		"Application Options:""\n"
+		"  -c, --check                     Perform a quick set of self-check tests." "\n"
+		"  --version                       Show the version of the program." "\n"
+		"  -g, --geometry=GEOMETRY         Create the initial window with the given geometry." "\n"
+		"  -n, --no-default-window         Only create windows for explicitly specified URIs." "\n"
+		"  --no-desktop                    Do not manage the desktop (ignore the preference set in the preferences dialog)." "\n"
+		"  --browser                       open a browser window." "\n"
+		"  -q, --quit                      Quit Caja." "\n"
+		"  --display=DISPLAY               X display to use" "\n" );
+
+		goto out;
+	}
+
+	if (perform_self_check && (remaining != NULL || kill_shell)) {
+		g_application_command_line_printerr (command_line,
+						     _("--check cannot be used with other options."));
+		retval = EXIT_FAILURE;
+		goto out;
+	}
+	if (kill_shell && remaining != NULL) {
+		g_application_command_line_printerr (command_line,
+						     _("-- quit cannot be used with URIs."));
+		retval = EXIT_FAILURE;
+		goto out;
+	}
+	if (geometry != NULL &&
+	    remaining != NULL && remaining[0] != NULL && remaining[1] != NULL) {
+		g_application_command_line_printerr (command_line,
+						     _("--geometry cannot be used with more than one URI."));
+		retval = EXIT_FAILURE;
+		goto out;
+	}
+
+    /* Do either the self-check or the real work. */
+    if (perform_self_check) {
+#ifndef CAJA_OMIT_SELF_CHECK
+        /* Run the checks (each twice) for caja and libcaja-private. */
+        caja_run_self_checks ();
+        caja_run_lib_self_checks ();
+        eel_exit_if_self_checks_failed ();
+
+        caja_run_self_checks ();
+        caja_run_lib_self_checks ();
+        eel_exit_if_self_checks_failed ();
+
+        retval = EXIT_SUCCESS;
+        goto out;
+#endif
+        }
+
+	/* Check the user's ~/.caja directories and post warnings
+	 * if there are problems.
+	 */
+	if (!kill_shell && !check_required_directories (self)) {
+		retval = EXIT_FAILURE;
+		goto out;
+	}
+
+  	else if (running_as_root () || !running_in_mate ())
+	{
+		/* do not manage desktop when running as root or on other desktops */
+		no_desktop = TRUE;
+
+		/* set smclient mode to "no restart" when running as root or on other desktops */
+		/*egg_sm_client_set_mode (EGG_SM_CLIENT_MODE_NO_RESTART);  */
+	}
+
+	exit_with_last_window =
+		g_settings_get_boolean (caja_preferences,
+					CAJA_PREFERENCES_EXIT_WITH_LAST_WINDOW);
+
+	if (running_as_root ())
+	{
+	exit_with_last_window = TRUE;
+	}
+	if (kill_shell) {
+		caja_application_quit (self);
+	} else {
+		char *accel_map_filename;
+/*FIXME: session management not supported by Nautilus changes, removed prior to 3.0 release
+
+		if (egg_sm_client_is_resumed (self->smclient)) {
+			no_default_window = TRUE;
+		}
+*/
+		if (!no_desktop &&
+		    !g_settings_get_boolean (mate_background_preferences,
+					     MATE_BG_KEY_SHOW_DESKTOP)) {
+			no_desktop = TRUE;
+		}
+
+		if (!no_desktop) {
+			caja_application_open_desktop (self);
+		}
+
+        if (no_default_window && no_desktop) {
+            g_application_hold (app);
+        }
+
+		finish_startup (self, no_desktop);
+
+        /* initialize CSS theming */
+        init_css ();
+
+
+		/* Monitor the preference to show or hide the desktop */
+		g_signal_connect_swapped (mate_background_preferences, "changed::" MATE_BG_KEY_SHOW_DESKTOP,
+					  G_CALLBACK (desktop_changed_callback),
+					  self);
+
+		/* Convert args to URIs */
+		if (remaining != NULL) {
+			GFile *file;
+			GPtrArray *uris_array;
+			gint i;
+			gchar *uri;
+
+			uris_array = g_ptr_array_new ();
+
+			for (i = 0; remaining[i] != NULL; i++) {
+				file = g_file_new_for_commandline_arg (remaining[i]);
+				if (file != NULL) {
+					uri = g_file_get_uri (file);
+					g_object_unref (file);
+					if (uri) {
+						g_ptr_array_add (uris_array, uri);
+					}
+				}
+			}
+
+			g_ptr_array_add (uris_array, NULL);
+			uris = (char **) g_ptr_array_free (uris_array, FALSE);
+			g_strfreev (remaining);
+		}
+
+		/* Create the other windows. */
+		if (uris != NULL || !no_default_window) {
+			open_windows (self, NULL,
+				      uris,
+				      gdk_screen_get_default (),
+				      geometry,
+				      browser_window);
+		}
+
+		/* Load session info if availible */
+        /*FIXME-not supported by Nautilus changes, didn't even get to 3.0 release
+		caja_application_smclient_load (self);  */
+
+		/* load accelerator map, and register save callback */
+		accel_map_filename = caja_get_accel_map_file ();
+		if (accel_map_filename) {
+			gtk_accel_map_load (accel_map_filename);
+			g_free (accel_map_filename);
+		}
+
+		g_signal_connect (gtk_accel_map_get (), "changed",
+				  G_CALLBACK (queue_accel_map_save_callback), NULL);
+	}
+
+ out:
+	g_option_context_free (context);
+	g_strfreev (argv);
+
+	return retval;
+}
+
+static void
+caja_application_startup (GApplication *app)
+{
+	CajaApplication *self = CAJA_APPLICATION (app);
+
+    /* chain up to the GTK+ implementation early, so gtk_init()
+     * is called for us.
+     */
+    G_APPLICATION_CLASS (caja_application_parent_class)->startup (app);
+
+	/* initialize the session manager client */
+/*FIXME-not supported by Nautilus changes, didn't even get to 3.0 release
+	caja_application_smclient_initialize (self); 
+*/
+	/* Initialize preferences. This is needed to create the
+	 * global GSettings objects.
+	 */
+    caja_global_preferences_init ();
+
+	/* register views */
+	fm_icon_view_register ();
+	fm_desktop_icon_view_register ();
+	fm_list_view_register ();
+	fm_compact_view_register ();
+#if ENABLE_EMPTY_VIEW
+	fm_empty_view_register ();
+#endif /* ENABLE_EMPTY_VIEW */
+
+	/* register sidebars */
+	caja_places_sidebar_register ();
+	caja_information_panel_register ();
+	fm_tree_view_register ();
+	caja_history_sidebar_register ();
+	caja_notes_viewer_register (); /* also property page */
+	caja_emblem_sidebar_register ();
+
+	/* register property pages */
+	caja_image_properties_page_register ();
+
+	/* initialize search path for custom icons */
+	gtk_icon_theme_append_search_path (gtk_icon_theme_get_default (),
+					   CAJA_DATADIR G_DIR_SEPARATOR_S "icons");
+}
+
+static void
+caja_application_quit_mainloop (GApplication *app)
+{
+    caja_icon_info_clear_caches ();
+    caja_application_save_accel_map (NULL);
+
+    G_APPLICATION_CLASS (caja_application_parent_class)->quit_mainloop (app);
+}
+
+static void
+caja_application_class_init (CajaApplicationClass *class)
+{
+        GObjectClass *object_class;
+	GApplicationClass *application_class;
+
+        object_class = G_OBJECT_CLASS (class);
+	object_class->constructor = caja_application_constructor;
+        object_class->finalize = caja_application_finalize;
+
+	application_class = G_APPLICATION_CLASS (class);
+	application_class->startup = caja_application_startup;
+	application_class->command_line = caja_application_command_line;
+    application_class->quit_mainloop = caja_application_quit_mainloop;
+}
+
+CajaApplication *
+caja_application_dup_singleton (void)
+{
+	return g_object_new (CAJA_TYPE_APPLICATION,
+			     "application-id", "org.mate.caja",
+			     "flags", G_APPLICATION_HANDLES_COMMAND_LINE,
+			     NULL);
+}
+#else
 static void
 caja_application_class_init (CajaApplicationClass *class)
 {
@@ -2485,3 +2856,4 @@ caja_application_class_init (CajaApplicationClass *class)
     object_class = G_OBJECT_CLASS (class);
     object_class->finalize = caja_application_finalize;
 }
+#endif

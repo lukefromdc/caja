@@ -60,12 +60,16 @@ typedef struct CajaWindow CajaWindow;
 typedef struct _CajaSpatialWindow CajaSpatialWindow;
 #endif
 
+#if !GTK_CHECK_VERSION (3, 0, 0)
 typedef struct CajaShell CajaShell;
+#endif
 
 typedef struct
 {
+#if GTK_CHECK_VERSION (3, 0, 0)
+    GtkApplication parent;
+#else
     GObject parent;
-#if !GTK_CHECK_VERSION (3, 0, 0)
     UniqueApp* unique_app;
 #endif
     EggSMClient* smclient;
@@ -78,9 +82,18 @@ typedef struct
 } CajaApplication;
 
 typedef struct
+#if GTK_CHECK_VERSION (3, 0, 0)
 {
+	GtkApplicationClass parent_class;
+} CajaApplicationClass;
+
+GType caja_application_get_type (void);
+
+CajaApplication *caja_application_dup_singleton (void);
+#else
     GObjectClass parent_class;
 } CajaApplicationClass;
+
 
 GType                caja_application_get_type          (void);
 CajaApplication *caja_application_new               (void);
@@ -94,7 +107,7 @@ void                 caja_application_startup           (CajaApplication *applic
 GList *              caja_application_get_window_list           (void);
 GList *              caja_application_get_spatial_window_list    (void);
 unsigned int         caja_application_get_n_windows            (void);
-
+#endif
 CajaWindow *     caja_application_get_spatial_window     (CajaApplication *application,
         CajaWindow      *requesting_window,
         const char      *startup_id,
@@ -105,13 +118,18 @@ CajaWindow *     caja_application_get_spatial_window     (CajaApplication *appli
 CajaWindow *     caja_application_create_navigation_window     (CajaApplication *application,
         const char          *startup_id,
         GdkScreen           *screen);
-
+#if GTK_CHECK_VERSION(3, 0, 0)
+void caja_application_close_all_navigation_windows (CajaApplication *self);
+#else
 void caja_application_close_all_navigation_windows (void);
+#endif
 void caja_application_close_parent_windows     (CajaSpatialWindow *window);
 void caja_application_close_all_spatial_windows  (void);
+#if !GTK_CHECK_VERSION(3, 0, 0)
 void caja_application_open_desktop      (CajaApplication *application);
 void caja_application_close_desktop     (void);
 gboolean caja_application_save_accel_map    (gpointer data);
+#endif
 void caja_application_open_location (CajaApplication *application,
         GFile *location,
         GFile *selection,

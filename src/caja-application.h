@@ -83,8 +83,8 @@ typedef struct
 
 
 #if GTK_CHECK_VERSION (3, 0, 0)
-{
 typedef struct
+{
 	GtkApplicationClass parent_class;
 } CajaApplicationClass;
 

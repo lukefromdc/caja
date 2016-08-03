@@ -2758,6 +2758,10 @@ if (help) {
             g_strfreev (remaining);
         }
 
+        /* initialize CSS theming */
+        init_css ();
+
+
         /* Create the other windows. */
         if (uris != NULL || !no_default_window) {
             open_windows (self, NULL,
@@ -2788,8 +2792,6 @@ caja_application_startup (GApplication *app)
     /* initialize the session manager client 
     caja_application_smclient_startup (self); */
 
-    /* initialize CSS theming */
-    init_css ();
 
     /* Initialize preferences. This is needed to create the
      * global GSettings objects.

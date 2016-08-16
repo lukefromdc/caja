@@ -2758,6 +2758,7 @@ caja_application_local_command_line (GApplication *application,
 {
     gboolean perform_self_check = FALSE;
     gboolean version = FALSE;
+    gboolean browser_window = FALSE;
     gboolean kill_shell = FALSE;
     gboolean no_default_window = FALSE;
     gchar **remaining = NULL;
@@ -2776,6 +2777,8 @@ caja_application_local_command_line (GApplication *application,
           N_("Only create windows for explicitly specified URIs."), NULL },
         { "no-desktop", '\0', 0, G_OPTION_ARG_NONE, &self->priv->no_desktop,
           N_("Do not manage the desktop (ignore the preference set in the preferences dialog)."), NULL },
+        { "browser", '\0', 0, G_OPTION_ARG_NONE, &browser_window, 
+          N_("Open a browser window."), NULL },
         { "quit", 'q', 0, G_OPTION_ARG_NONE, &kill_shell, 
           N_("Quit Caja."), NULL },
         { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY, &remaining, NULL,  N_("[URI...]") },

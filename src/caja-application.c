@@ -3110,11 +3110,22 @@ g_type_class_add_private (class, sizeof (CajaApplication));
 CajaApplication *
 caja_application_dup_singleton (void)
 {
+    /*only register application when running in MATE/not as root 
+    to avoid errors in some GTK versions when invoking "sudo caja" */
+
+    if (!running_as_root () || running_in_mate ()){
+        return g_object_new (CAJA_TYPE_APPLICATION,
+                    "application-id", "org.mate.caja",
+                    "register-session", TRUE,
+                    "flags", G_APPLICATION_HANDLES_OPEN,
+                     NULL);
+    }
+    else{
     return g_object_new (CAJA_TYPE_APPLICATION,
-                "application-id", "org.mate.caja",
-                "register-session", TRUE,
-                "flags", G_APPLICATION_HANDLES_OPEN,
-                 NULL);
+                    "application-id", "org.mate.caja",
+                    "flags", G_APPLICATION_HANDLES_OPEN,
+                     NULL);
+   }
 }
 #else
 static void

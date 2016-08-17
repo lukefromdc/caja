@@ -3104,7 +3104,7 @@ caja_application_class_init (CajaApplicationClass *class)
     application_class->open = caja_application_open;
     application_class->local_command_line = caja_application_local_command_line;
 
-g_type_class_add_private (class, sizeof (CajaApplication));
+g_type_class_add_private (class, sizeof (CajaApplicationPriv));
 }
 
 CajaApplication *

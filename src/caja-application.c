@@ -3113,7 +3113,7 @@ caja_application_dup_singleton (void)
     /*only register application when running in MATE/not as root 
     to avoid errors in some GTK versions when invoking "sudo caja" */
 
-    if (!running_as_root () || running_in_mate ()){
+    if (!running_as_root ()){
         return g_object_new (CAJA_TYPE_APPLICATION,
                     "application-id", "org.mate.caja",
                     "register-session", TRUE,

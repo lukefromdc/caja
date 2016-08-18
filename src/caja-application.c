@@ -146,7 +146,11 @@ static void     volume_removed_callback            (GVolumeMonitor           *mo
         CajaApplication      *application);
 static void     drive_listen_for_eject_button      (GDrive *drive,
         CajaApplication *application);
-#if !GTK_CHECK_VERSION (3, 0, 0)
+#if GTK_CHECK_VERSION (3, 0, 0)
+static void     caja_application_load_session    (CajaApplication *application);
+static char *   caja_application_get_session_data (CajaApplication *self);
+void caja_application_quit (CajaApplication *self);
+#else
 static void     caja_application_load_session     (CajaApplication *application);
 static char *   caja_application_get_session_data (void);
 #endif
@@ -308,16 +312,22 @@ automount_all_volumes (CajaApplication *application)
     }
 
 }
-#if !GTK_CHECK_VERSION (3, 0, 0)
+
 static void
 smclient_save_state_cb (EggSMClient   *client,
                         GKeyFile      *state_file,
                         CajaApplication *application)
 {
     char *data;
+#if GTK_CHECK_VERSION (3, 0, 0)
+    data = caja_application_get_session_data (application);
 
+    if (data != NULL)
+#else
     data = caja_application_get_session_data ();
+
     if (data)
+#endif  
     {
         g_key_file_set_string (state_file,
                                "Caja",
@@ -331,10 +341,38 @@ static void
 smclient_quit_cb (EggSMClient   *client,
                   CajaApplication *application)
 {
-    caja_main_event_loop_quit (TRUE);
-}
-#endif
 #if GTK_CHECK_VERSION (3, 0, 0)
+    caja_application_quit (application);
+#else
+    caja_main_event_loop_quit (TRUE);
+#endif
+}
+
+#if GTK_CHECK_VERSION (3, 0, 0)
+static void
+caja_application_smclient_initialize (CajaApplication *self)
+{
+    egg_sm_client_set_mode (EGG_SM_CLIENT_MODE_NORMAL);
+
+    g_signal_connect (self->smclient, "save_state",
+                          G_CALLBACK (smclient_save_state_cb),
+                          self);
+    g_signal_connect (self->smclient, "quit",
+              G_CALLBACK (smclient_quit_cb),
+              self);
+
+    /* TODO: Should connect to quit_requested and block logout on active transfer? */
+}
+
+void
+caja_application_smclient_startup (CajaApplication *self)
+{
+    g_assert (self->smclient == NULL);
+
+    egg_sm_client_set_mode (EGG_SM_CLIENT_MODE_DISABLED);
+    self->smclient = egg_sm_client_get ();
+}
+
 static void
 open_window (CajaApplication *application,
          GFile *location, GdkScreen *screen, const char *geometry)
@@ -2280,13 +2318,21 @@ icon_from_string (const char *string)
     }
     return NULL;
 }
-#if !GTK_CHECK_VERSION (3, 0, 0)
+#if GTK_CHECK_VERSION (3, 0, 0)
+static char *
+caja_application_get_session_data (CajaApplication *self)
+#else
 static char *
 caja_application_get_session_data (void)
+#endif
 {
     xmlDocPtr doc;
     xmlNodePtr root_node, history_node;
+#if GTK_CHECK_VERSION (3, 0, 0)
+    GList *l, *window_list;
+#else
     GList *l;
+#endif
     char *data;
     unsigned n_processed;
     xmlSaveCtxtPtr ctx;
@@ -2300,8 +2346,7 @@ caja_application_get_session_data (void)
     history_node = xmlNewChild (root_node, NULL, "history", NULL);
 
     n_processed = 0;
-    for (l = caja_get_history_list (); l != NULL; l = l->next)
-    {
+    for (l = caja_get_history_list (); l != NULL; l = l->next) {
         CajaBookmark *bookmark;
         xmlNodePtr bookmark_node;
         GIcon *icon;
@@ -2316,10 +2361,13 @@ caja_application_get_session_data (void)
         g_free (tmp);
 
         icon = caja_bookmark_get_icon (bookmark);
+#if GTK_CHECK_VERSION (3, 0, 0)
+        tmp = g_icon_to_string (icon);
+#else
         tmp = icon_to_string (icon);
+#endif
         g_object_unref (icon);
-        if (tmp)
-        {
+        if (tmp) {
             xmlNewProp (bookmark_node, "icon", tmp);
             g_free (tmp);
         }
@@ -2328,20 +2376,20 @@ caja_application_get_session_data (void)
         xmlNewProp (bookmark_node, "uri", tmp);
         g_free (tmp);
 
-        if (caja_bookmark_get_has_custom_name (bookmark))
-        {
+        if (caja_bookmark_get_has_custom_name (bookmark)) {
             xmlNewProp (bookmark_node, "has_custom_name", "TRUE");
         }
 
-        if (++n_processed > 50)   /* prevent history list from growing arbitrarily large. */
-        {
+        if (++n_processed > 50) { /* prevent history list from growing arbitrarily large. */
             break;
         }
     }
-
-    for (l = caja_application_window_list; l != NULL; l = l->next)
-
-    {
+#if GTK_CHECK_VERSION (3, 0, 0)
+    window_list = gtk_application_get_windows (GTK_APPLICATION (self));
+    for (l = window_list; l != NULL; l = l->next) {
+#else
+    for (l = caja_application_window_list; l != NULL; l = l->next) {
+#endif
         xmlNodePtr win_node, slot_node;
         CajaWindow *window;
         CajaWindowSlot *slot, *active_slot;
@@ -2350,12 +2398,27 @@ caja_application_get_session_data (void)
 
         window = l->data;
 
-        win_node = xmlNewChild (root_node, NULL, "window", NULL);
+        slots = caja_window_get_slots (window);
+        active_slot = caja_window_get_active_slot (window);
 
+        /* store one slot as window location. Otherwise
+         * older Caja versions will bail when reading the file. */
+        tmp = caja_window_slot_get_location_uri (active_slot);
+
+        if (eel_uri_is_desktop (tmp)) {
+            g_list_free (slots);
+            g_free (tmp);
+            continue;
+        }
+
+        win_node = xmlNewChild (root_node, NULL, "window", NULL);
+        
+        xmlNewProp (win_node, "location", tmp);
+        g_free (tmp);
+        
         xmlNewProp (win_node, "type", CAJA_IS_NAVIGATION_WINDOW (window) ? "navigation" : "spatial");
 
-        if (CAJA_IS_NAVIGATION_WINDOW (window))   /* spatial windows store their state as file metadata */
-        {
+        if (CAJA_IS_NAVIGATION_WINDOW (window)) { /* spatial windows store their state as file metadata */
             GdkWindow *gdk_window;
 
             tmp = eel_gtk_window_get_geometry_string (GTK_WINDOW (window));
@@ -2365,35 +2428,22 @@ caja_application_get_session_data (void)
             gdk_window = gtk_widget_get_window (GTK_WIDGET (window));
 
             if (gdk_window &&
-                    gdk_window_get_state (gdk_window) & GDK_WINDOW_STATE_MAXIMIZED)
-            {
+                gdk_window_get_state (gdk_window) & GDK_WINDOW_STATE_MAXIMIZED) {
                 xmlNewProp (win_node, "maximized", "TRUE");
             }
 
             if (gdk_window &&
-                    gdk_window_get_state (gdk_window) & GDK_WINDOW_STATE_STICKY)
-            {
+                gdk_window_get_state (gdk_window) & GDK_WINDOW_STATE_STICKY) {
                 xmlNewProp (win_node, "sticky", "TRUE");
             }
 
             if (gdk_window &&
-                    gdk_window_get_state (gdk_window) & GDK_WINDOW_STATE_ABOVE)
-            {
+                gdk_window_get_state (gdk_window) & GDK_WINDOW_STATE_ABOVE) {
                 xmlNewProp (win_node, "keep-above", "TRUE");
             }
         }
 
-        slots = caja_window_get_slots (window);
-        active_slot = caja_window_get_active_slot (window);
-
-        /* store one slot as window location. Otherwise
-         * older Caja versions will bail when reading the file. */
-        tmp = caja_window_slot_get_location_uri (active_slot);
-        xmlNewProp (win_node, "location", tmp);
-        g_free (tmp);
-
-        for (m = slots; m != NULL; m = m->next)
-        {
+        for (m = slots; m != NULL; m = m->next) {
             slot = CAJA_WINDOW_SLOT (m->data);
 
             slot_node = xmlNewChild (win_node, NULL, "slot", NULL);
@@ -2402,8 +2452,7 @@ caja_application_get_session_data (void)
             xmlNewProp (slot_node, "location", tmp);
             g_free (tmp);
 
-            if (slot == active_slot)
-            {
+            if (slot == active_slot) {
                 xmlNewProp (slot_node, "active", "TRUE");
             }
         }
@@ -2415,11 +2464,10 @@ caja_application_get_session_data (void)
     xmlIndentTreeOutput = 1;
     ctx = xmlSaveToBuffer (buffer, "UTF-8", XML_SAVE_FORMAT);
     if (xmlSaveDoc (ctx, doc) < 0 ||
-            xmlSaveFlush (ctx) < 0)
-    {
+        xmlSaveFlush (ctx) < 0) {
         g_message ("failed to save session");
     }
-
+    
     xmlSaveClose(ctx);
     data = g_strndup (buffer->content, buffer->use);
     xmlBufferFree (buffer);
@@ -2429,19 +2477,21 @@ caja_application_get_session_data (void)
     return data;
 }
 
-void
 caja_application_load_session (CajaApplication *application)
+
 {
     xmlDocPtr doc;
     gboolean bail;
     xmlNodePtr root_node;
     GKeyFile *state_file;
     char *data;
-
-    if (!egg_sm_client_is_resumed (application->smclient))
+#if GTK_CHECK_VERSION (3, 0, 0)
+    caja_application_smclient_initialize (application);
+#endif
+   if (!egg_sm_client_is_resumed (application->smclient))
     {
         return;
-    }
+  } 
 
     state_file = egg_sm_client_get_state_file (application->smclient);
     if (!state_file)
@@ -2459,7 +2509,7 @@ caja_application_load_session (CajaApplication *application)
     }
 
     bail = TRUE;
-
+    
     doc = xmlReadMemory (data, strlen (data), NULL, "UTF-8", 0);
     if (doc != NULL && (root_node = xmlDocGetRootElement (doc)) != NULL)
     {
@@ -2501,7 +2551,11 @@ caja_application_load_session (CajaApplication *application)
                         icon = NULL;
                         if (icon_str)
                         {
+#if GTK_CHECK_VERSION (3, 0, 0)
+                            icon = g_icon_new_for_string (icon_str, NULL);
+#else
                             icon = icon_from_string (icon_str);
+#endif
                         }
                         location = g_file_new_for_uri (uri);
 
@@ -2530,7 +2584,9 @@ caja_application_load_session (CajaApplication *application)
                     caja_send_history_list_changed ();
                 }
             }
+
             else if (g_strcmp0 (node->name, "window") == 0)
+
             {
                 CajaWindow *window;
                 xmlChar *type, *location_uri, *slot_uri;
@@ -2558,9 +2614,11 @@ caja_application_load_session (CajaApplication *application)
                 if (g_strcmp0 (type, "navigation") == 0)
                 {
                     xmlChar *geometry;
-
+#if GTK_CHECK_VERSION (3, 0, 0)
+                    window = caja_application_create_navigation_window (application, gdk_screen_get_default ());
+#else
                     window = caja_application_create_navigation_window (application, NULL, gdk_screen_get_default ());
-
+#endif
                     geometry = xmlGetProp (node, "geometry");
                     if (geometry != NULL)
                     {
@@ -2682,8 +2740,6 @@ caja_application_load_session (CajaApplication *application)
     }
 }
 
-#endif
-
 #if GTK_CHECK_VERSION (3, 0, 0)
 static gboolean
 do_cmdline_sanity_checks (CajaApplication *self,
@@ -2760,6 +2816,8 @@ caja_application_local_command_line (GApplication *application,
     gboolean version = FALSE;
     gboolean browser_window = FALSE;
     gboolean kill_shell = FALSE;
+    gboolean autostart_mode = FALSE;
+    const gchar *autostart_id;
     gboolean no_default_window = FALSE;
     gchar **remaining = NULL;
     CajaApplication *self = CAJA_APPLICATION (application);
@@ -2795,6 +2853,18 @@ caja_application_local_command_line (GApplication *application,
     context = g_option_context_new (_("\n\nBrowse the file system with the file manager"));
     g_option_context_add_main_entries (context, options, NULL);
     g_option_context_add_group (context, gtk_get_option_group (TRUE));
+
+	g_option_context_add_group (context, egg_sm_client_get_option_group ());
+
+
+    /* we need to do this here, as parsing the EggSMClient option context,
+	 * unsets this variable.
+	 */
+	autostart_id = g_getenv ("DESKTOP_AUTOSTART_ID");
+	if (autostart_id != NULL && *autostart_id != '\0') {
+		autostart_mode = TRUE;
+        }
+
 
     argv = *arguments;
     argc = g_strv_length (argv);
@@ -2843,6 +2913,9 @@ caja_application_local_command_line (GApplication *application,
                         "quit", NULL);
         goto out;
     }
+
+    /* Initialize SMClient and load session info if availible */
+    caja_application_load_session (self);
 
     GFile **files;
     gint idx, len;
@@ -3005,9 +3078,8 @@ caja_application_startup (GApplication *app)
      */
     G_APPLICATION_CLASS (caja_application_parent_class)->startup (app);
 
-    /* initialize the session manager client 
-    caja_application_smclient_startup (self); */
-
+	/* initialize the session manager client */
+	caja_application_smclient_startup (self);
 
     /* Initialize preferences. This is needed to create the
      * global GSettings objects.

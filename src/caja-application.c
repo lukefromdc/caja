@@ -384,11 +384,16 @@ open_window (CajaApplication *application,
     uri = g_file_get_uri (location);
     g_debug ("Opening new window at uri %s", uri);
 
-    if (browser_window ||
-            g_settings_get_boolean (caja_preferences, CAJA_PREFERENCES_ALWAYS_USE_BROWSER)) {
+    if (browser_window) {
         window = caja_application_create_navigation_window (application,
                  screen);
-    } else {
+    }
+    else if(g_settings_get_boolean (caja_preferences, CAJA_PREFERENCES_ALWAYS_USE_BROWSER)){
+        window = caja_application_create_navigation_window (application,
+                 screen);
+    }
+
+    else {
         window = caja_application_get_spatial_window (application,
                  NULL,
                  NULL,

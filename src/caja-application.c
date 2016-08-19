@@ -375,16 +375,28 @@ caja_application_smclient_startup (CajaApplication *self)
 
 static void
 open_window (CajaApplication *application,
-         GFile *location, GdkScreen *screen, const char *geometry)
+         GFile *location, GdkScreen *screen, const char *geometry, gboolean browser_window)
 {
+    CajaApplication *self = CAJA_APPLICATION (application);
     CajaWindow *window;
     gchar *uri;
 
     uri = g_file_get_uri (location);
     g_debug ("Opening new window at uri %s", uri);
 
-    window = caja_application_create_navigation_window (application,
-                             screen);
+    if (browser_window ||
+            g_settings_get_boolean (caja_preferences, CAJA_PREFERENCES_ALWAYS_USE_BROWSER)) {
+        window = caja_application_create_navigation_window (application,
+                 screen);
+    } else {
+        window = caja_application_get_spatial_window (application,
+                 NULL,
+                 NULL,
+                 location,
+                 screen,
+                 NULL);
+    }
+
     caja_window_go_to (window, location);
 
     if (geometry != NULL && !gtk_widget_get_visible (GTK_WIDGET (window))) {
@@ -402,23 +414,25 @@ open_window (CajaApplication *application,
     g_free (uri);
 }
 
+
 static void
 open_windows (CajaApplication *application,
           GFile **files,
           GdkScreen *screen,
           const char *geometry,
-          guint len)
+          guint len,
+          gboolean browser_window)
 {
     guint i;
 
     if (files == NULL || files[0] == NULL) {
         /* Open a window pointing at the default location. */
-        open_window (application, NULL, screen, geometry);
+        open_window (application, NULL, screen, geometry, browser_window );
     } else {
         /* Open windows at each requested location. */ 
         i = 0;
         while (i < len ){ 
-              open_window (application, files[i], screen, geometry);
+              open_window (application, files[i], screen, geometry, browser_window);
                i++ ;
          }
     }
@@ -431,13 +445,19 @@ caja_application_open (GApplication *app,
                const gchar *hint)
 {
     CajaApplication *self = CAJA_APPLICATION (app);
+    gboolean browser_window = FALSE;
 
     g_debug ("Open called on the GApplication instance; %d files", n_files);
+
+    if (strcmp(hint,"") != 0){
+        browser_window = TRUE;
+    }
 
     open_windows (self, files,
               gdk_screen_get_default (),
               self->priv->geometry,
-              n_files);
+              n_files,
+              browser_window);
 }
 
 void
@@ -2476,7 +2496,7 @@ caja_application_get_session_data (void)
 
     return data;
 }
-
+void
 caja_application_load_session (CajaApplication *application)
 
 {
@@ -2914,8 +2934,13 @@ caja_application_local_command_line (GApplication *application,
         goto out;
     }
 
-    /* Initialize SMClient and load session info if availible */
-    caja_application_load_session (self);
+    /* Initialize  and load session info if available */
+    /* Load session if and only if autostarted        */
+    /* This avoids errors on command line invocation  */
+    if (autostart_id != NULL ) {
+        caja_application_load_session (self);
+    }
+
 
     GFile **files;
     gint idx, len;
@@ -2951,17 +2976,35 @@ caja_application_local_command_line (GApplication *application,
     }
 
     /* Invoke "Open" to create new windows */
-    if (len > 0)  {
-        g_application_open (application, files, len, "");
-    }
+    if (browser_window == TRUE || running_as_root()){
+        /* Invoke "Open" w/ browser hint, create browser windows unconditionally */
+        /* Force browser mode when root due to issues with sudo invocation and preferences*/
+        if (len > 0)  {
+            g_application_open (application, files, len, "browser_window");
+        }
 
-    for (idx = 0; idx < len; idx++) {
-        g_object_unref (files[idx]);
+        for (idx = 0; idx < len; idx++) {
+            g_object_unref (files[idx]);
+        }
+        g_free (files);
     }
-    g_free (files);
+    
+    else{
+        /* Invoke "Open" w no hint to create browser or spatial    */
+        /* windows as set by user's always use browser" preference */
+        
+        if (len > 0)  {
+            g_application_open (application, files, len, "");
+        }
 
+        for (idx = 0; idx < len; idx++) {
+            g_object_unref (files[idx]);
+        }
+        g_free (files);
+    }
  out:
     g_option_context_free (context);
+
 
     return TRUE;    
 }
@@ -3072,6 +3115,9 @@ caja_application_startup (GApplication *app)
 {
     GList *drives;
     CajaApplication *self = CAJA_APPLICATION (app);
+    gboolean exit_with_last_window;
+    const char *autostart_id;
+    CajaApplication *application;
 
     /* chain up to the GTK+ implementation early, so gtk_init()
      * is called for us.
@@ -3149,6 +3195,18 @@ caja_application_startup (GApplication *app)
     init_desktop (self);
 
     do_upgrades_once (self);
+
+
+    autostart_id = g_getenv ("DESKTOP_AUTOSTART_ID");
+    exit_with_last_window = g_settings_get_boolean (caja_preferences,
+	                        CAJA_PREFERENCES_EXIT_WITH_LAST_WINDOW);
+
+    if (autostart_id != NULL && running_in_mate () 
+            && exit_with_last_window == FALSE && !running_as_root ()) {
+    g_application_hold (G_APPLICATION (self));
+
+    }
+
 }
 
 static void

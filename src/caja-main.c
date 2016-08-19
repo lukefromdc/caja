@@ -336,20 +336,7 @@ main (int argc, char *argv[])
 {
 	gint retval;
 	CajaApplication *application;
-    gboolean autostart_mode;
-    const char *autostart_id;
-    autostart_mode = FALSE;
-    gboolean exit_with_last_window;
 
-    exit_with_last_window = g_settings_get_boolean (caja_preferences,
-					CAJA_PREFERENCES_EXIT_WITH_LAST_WINDOW);
-
-    autostart_id = g_getenv ("DESKTOP_AUTOSTART_ID");
-    if (autostart_id != NULL && *autostart_id != '\0')
-    {
-        autostart_mode = TRUE;
-    }
-	
 #if defined (HAVE_MALLOPT) && defined(M_MMAP_THRESHOLD)
 	/* Caja uses lots and lots of small and medium size allocations,
 	 * and then a few large ones for the desktop background. By default
@@ -398,13 +385,6 @@ main (int argc, char *argv[])
 
 		/* Run the caja application. */
 		application = caja_application_dup_singleton ();
-
-       /* hold indefinitely if autostarted (not in root or outside MATE) */
-
-        if (autostart_mode == TRUE && running_in_mate () 
-            && exit_with_last_window == FALSE && !running_as_root ()) {
-                      g_application_hold (G_APPLICATION (application));
-        }
 
 		retval = g_application_run (G_APPLICATION (application),
 					    argc, argv);

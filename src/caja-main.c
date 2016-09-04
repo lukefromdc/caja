@@ -381,7 +381,7 @@ main (int argc, char *argv[])
 	LIBXML_TEST_VERSION
 
     /* Run the caja application. */
-    application = caja_application_new();
+    application = caja_application_get_singleton ();
 
     retval = g_application_run (G_APPLICATION (application),
                                 argc, argv);

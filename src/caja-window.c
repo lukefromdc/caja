@@ -1943,7 +1943,7 @@ caja_forget_history (void)
 #if GTK_CHECK_VERSION (3, 0, 0)
     CajaApplication *app;
 
-    app = CAJA_APPLICATION (g_application_get_default ());
+    app = caja_application_get_singleton ();
 #endif
     /* Clear out each window's back & forward lists. Also, remove
      * each window's current location bookmark from history list

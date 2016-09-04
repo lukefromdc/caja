@@ -105,6 +105,10 @@ enum {
 
 #define CAJA_ACCEL_MAP_SAVE_DELAY 30
 
+#if GTK_CHECK_VERSION (3, 0, 0)
+static CajaApplication *singleton = NULL;
+#endif
+
 /* Keeps track of all the desktop windows. */
 static GList *caja_application_desktop_windows;
 
@@ -503,6 +507,26 @@ caja_application_open_location (CajaApplication *application,
     if (sel_list != NULL) {
         caja_file_list_free (sel_list);
     }
+}
+
+static GObject *
+caja_application_constructor (GType type,
+                              guint n_construct_params,
+                              GObjectConstructParam *construct_params)
+{
+        GObject *retval;
+
+        if (singleton != NULL) {
+                return G_OBJECT (singleton);
+        }
+
+        retval = G_OBJECT_CLASS (caja_application_parent_class)->constructor
+                (type, n_construct_params, construct_params);
+
+        singleton = CAJA_APPLICATION (retval);
+        g_object_add_weak_pointer (retval, (gpointer) &singleton);
+
+        return retval;
 }
 
 void
@@ -3126,7 +3150,6 @@ caja_application_startup (GApplication *app)
     GList *drives;
     CajaApplication *application;
     CajaApplication *self = CAJA_APPLICATION (app);
-    GApplication *instance;
     gboolean exit_with_last_window;
     const gchar *autostart_id;
     exit_with_last_window = TRUE;
@@ -3218,10 +3241,10 @@ caja_application_startup (GApplication *app)
                                 CAJA_PREFERENCES_EXIT_WITH_LAST_WINDOW);
     }
 
-    instance = g_application_get_default ();
+    application = caja_application_get_singleton ();
 
     if (exit_with_last_window == FALSE){
-        g_application_hold (G_APPLICATION (instance));
+        g_application_hold (G_APPLICATION (application));
     }
 
     do_upgrades_once (self);
@@ -3243,6 +3266,7 @@ caja_application_class_init (CajaApplicationClass *class)
     GApplicationClass *application_class;
 
         object_class = G_OBJECT_CLASS (class);
+    object_class->constructor = caja_application_constructor;
         object_class->finalize = caja_application_finalize;
 
     application_class = G_APPLICATION_CLASS (class);
@@ -3255,7 +3279,7 @@ g_type_class_add_private (class, sizeof (CajaApplicationPriv));
 }
 
 CajaApplication *
-caja_application_new (void)
+caja_application_get_singleton (void)
 {
     /*only register application when running in MATE/not as root 
     to avoid errors in some GTK versions when invoking "sudo caja" */
